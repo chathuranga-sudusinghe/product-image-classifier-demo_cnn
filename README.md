@@ -102,11 +102,20 @@ python -m venv .venv
 ```
 pip install -r requirements.txt
 ```
+### 3. Add Docker commands
+
+Because Docker is already completed, README should show:
+```
+docker build -t product-image-classifier-demo .
+docker run -p 7860:7860 product-image-classifier-demo
+```
 
 ### Run the Gradio App
 ```
 python app/main.py
 ```
+
+
 ## Output
 
 The app shows:
