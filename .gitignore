@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Project artifacts
+artifacts/
+data/
+*.keras
+*.h5
+
+# Test / cache
+.pytest_cache/
+.coverage
+htmlcov/
