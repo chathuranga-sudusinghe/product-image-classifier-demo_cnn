@@ -24,3 +24,7 @@ data/
 .pytest_cache/
 .coverage
 htmlcov/
+
+# Logs
+logs/*.log
+!logs/.gitkeep
