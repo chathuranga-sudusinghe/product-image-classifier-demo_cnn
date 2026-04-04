@@ -15,7 +15,6 @@ Thumbs.db
 .vscode/
 
 # Project artifacts
-artifacts/
 data/
 *.h5
 
