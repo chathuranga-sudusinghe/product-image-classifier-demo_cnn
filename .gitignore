@@ -17,7 +17,6 @@ Thumbs.db
 # Project artifacts
 artifacts/
 data/
-*.keras
 *.h5
 
 # Test / cache
