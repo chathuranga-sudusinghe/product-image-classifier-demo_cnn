@@ -1,0 +1,13 @@
+{
+  "dataset_name": "CIFAR-10",
+  "random_seed": 42,
+  "train_subset_size": 10000,
+  "validation_subset_size": 2000,
+  "test_subset_size": 2000,
+  "epochs": 5,
+  "batch_size": 64,
+  "tensorflow_version": "2.21.0",
+  "final_test_loss": 1.1888225078582764,
+  "final_test_accuracy": 0.5755000114440918,
+  "model_parameter_count": 1143242
+}
