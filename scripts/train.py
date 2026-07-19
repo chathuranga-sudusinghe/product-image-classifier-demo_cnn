@@ -14,6 +14,7 @@ from core.logger import setup_logger
 # ---------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ARTIFACTS_DIR = PROJECT_ROOT / "artifacts"
+EVALUATION_DIR = PROJECT_ROOT / "evaluation"
 
 # ---------------------------------------------------------
 # Config
@@ -213,6 +214,128 @@ def preprocess_images(
     return x_train, x_validation, x_test
 
 
+def build_confusion_matrix(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    num_classes: int = NUM_CLASSES,
+) -> np.ndarray:
+    """Build a confusion matrix without adding an evaluation dependency."""
+    y_true = np.asarray(y_true).reshape(-1).astype(np.int64, copy=False)
+    y_pred = np.asarray(y_pred).reshape(-1).astype(np.int64, copy=False)
+
+    if len(y_true) != len(y_pred):
+        raise ValueError("True and predicted labels must have the same length.")
+    if np.any(y_true < 0) or np.any(y_true >= num_classes):
+        raise ValueError("True labels are outside the expected class range.")
+    if np.any(y_pred < 0) or np.any(y_pred >= num_classes):
+        raise ValueError("Predicted labels are outside the expected class range.")
+
+    matrix = np.zeros((num_classes, num_classes), dtype=np.int64)
+    np.add.at(matrix, (y_true, y_pred), 1)
+    return matrix
+
+
+def build_classification_report(
+    confusion_matrix: np.ndarray,
+    class_names: list[str] = CLASS_NAMES,
+) -> dict[str, dict[str, float | int]]:
+    """Calculate per-class precision, recall, F1-score, and support."""
+    matrix = np.asarray(confusion_matrix)
+    expected_shape = (len(class_names), len(class_names))
+    if matrix.shape != expected_shape:
+        raise ValueError(f"Confusion matrix must have shape {expected_shape}.")
+
+    report: dict[str, dict[str, float | int]] = {}
+    for class_index, class_name in enumerate(class_names):
+        true_positive = int(matrix[class_index, class_index])
+        false_positive = int(matrix[:, class_index].sum() - true_positive)
+        false_negative = int(matrix[class_index, :].sum() - true_positive)
+        support = int(matrix[class_index, :].sum())
+
+        precision_denominator = true_positive + false_positive
+        recall_denominator = true_positive + false_negative
+        precision = (
+            true_positive / precision_denominator
+            if precision_denominator
+            else 0.0
+        )
+        recall = true_positive / recall_denominator if recall_denominator else 0.0
+        f1_denominator = precision + recall
+        f1_score = (
+            2 * precision * recall / f1_denominator if f1_denominator else 0.0
+        )
+
+        report[class_name] = {
+            "precision": float(precision),
+            "recall": float(recall),
+            "f1-score": float(f1_score),
+            "support": support,
+        }
+
+    return report
+
+
+def save_evaluation_evidence(
+    *,
+    history: dict[str, list[Any]],
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    test_loss: float,
+    test_accuracy: float,
+    model_parameter_count: int,
+    tensorflow_version: str,
+    train_size: int,
+    validation_size: int,
+    test_size: int,
+    evaluation_dir: Path = EVALUATION_DIR,
+) -> dict[str, Path]:
+    """Save reproducible training and test-evaluation evidence."""
+    evaluation_dir.mkdir(parents=True, exist_ok=True)
+
+    metrics = {
+        "dataset_name": "CIFAR-10",
+        "random_seed": RANDOM_STATE,
+        "train_subset_size": int(train_size),
+        "validation_subset_size": int(validation_size),
+        "test_subset_size": int(test_size),
+        "epochs": EPOCHS,
+        "batch_size": BATCH_SIZE,
+        "tensorflow_version": str(tensorflow_version),
+        "final_test_loss": float(test_loss),
+        "final_test_accuracy": float(test_accuracy),
+        "model_parameter_count": int(model_parameter_count),
+    }
+    serializable_history = {
+        metric_name: [float(value) for value in values]
+        for metric_name, values in history.items()
+    }
+    confusion_matrix = build_confusion_matrix(y_true, y_pred)
+    classification_report = build_classification_report(confusion_matrix)
+
+    paths = {
+        "metrics": evaluation_dir / "metrics.json",
+        "training_history": evaluation_dir / "training_history.json",
+        "classification_report": evaluation_dir / "classification_report.json",
+        "confusion_matrix": evaluation_dir / "confusion_matrix.csv",
+    }
+
+    with paths["metrics"].open("w", encoding="utf-8") as file:
+        json.dump(metrics, file, indent=2)
+    with paths["training_history"].open("w", encoding="utf-8") as file:
+        json.dump(serializable_history, file, indent=2)
+    with paths["classification_report"].open("w", encoding="utf-8") as file:
+        json.dump(classification_report, file, indent=2)
+    np.savetxt(
+        paths["confusion_matrix"],
+        confusion_matrix,
+        fmt="%d",
+        delimiter=",",
+    )
+
+    logger.info("Evaluation evidence saved successfully in %s", evaluation_dir)
+    return paths
+
+
 def build_model() -> Any:
     """
     Build a small CNN for CIFAR-10 classification.
@@ -270,8 +393,9 @@ def main() -> None:
     """
     Run the full image classification training pipeline.
     """
-    from tensorflow import keras
+    import tensorflow as tf
 
+    keras = tf.keras
     logger.info("Starting training pipeline...")
 
     np.random.seed(RANDOM_STATE)
@@ -297,7 +421,7 @@ def main() -> None:
     model = build_model()
 
     logger.info("Starting model training...")
-    model.fit(
+    history = model.fit(
         x_train,
         y_train,
         validation_data=(x_validation, y_validation),
@@ -308,11 +432,25 @@ def main() -> None:
 
     logger.info("Evaluating model once on the untouched test subset...")
     loss, accuracy = model.evaluate(x_test, y_test, verbose=0)
+    probabilities = model.predict(x_test, verbose=0)
+    predicted_labels = np.argmax(probabilities, axis=1)
 
     logger.info("Test loss: %.4f", loss)
     logger.info("Test accuracy: %.4f", accuracy)
 
     save_artifacts(model)
+    save_evaluation_evidence(
+        history=history.history,
+        y_true=y_test,
+        y_pred=predicted_labels,
+        test_loss=loss,
+        test_accuracy=accuracy,
+        model_parameter_count=model.count_params(),
+        tensorflow_version=tf.__version__,
+        train_size=len(y_train),
+        validation_size=len(y_validation),
+        test_size=len(y_test),
+    )
     logger.info("Training pipeline completed successfully.")
 
 
