@@ -124,10 +124,16 @@ def create_interface(model: Any, class_names: list[str]) -> Any:
     )
     return gr.Interface(
         fn=prediction_function,
-        inputs=gr.Image(type="pil", label="Upload an image"),
-        outputs=gr.Label(num_top_classes=3, label="Prediction"),
-        title="Product Image Classifier Demo",
-        description="Upload an image to predict its class using the trained CNN model.",
+        inputs=gr.Image(type="pil", label="Upload Image"),
+        outputs=gr.Label(num_top_classes=3, label="Top Predictions"),
+        title="CIFAR-10 Image Classifier",
+        description=(
+            "This small CNN resizes uploaded images to 32 x 32 pixels and shows "
+            "the top three CIFAR-10 predictions.\n\n"
+            "**Supported classes:** airplane, automobile, bird, cat, deer, dog, "
+            "frog, horse, ship, truck."
+        ),
+        flagging_mode="never",
     )
 
 
