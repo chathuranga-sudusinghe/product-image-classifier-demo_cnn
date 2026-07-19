@@ -14,11 +14,11 @@ venv/
 Thumbs.db
 .vscode/
 
-# Project artifacts
+# Local dataset / alternate model formats
 data/
 *.h5
 
-# Test / cache
+# Test / coverage caches
 .pytest_cache/
 .coverage
 htmlcov/
@@ -26,9 +26,3 @@ htmlcov/
 # Logs
 logs/*.log
 !logs/.gitkeep
-
-.pytest_cache/
-
-.terraform/
-*.tfstate
-*.tfstate.*
