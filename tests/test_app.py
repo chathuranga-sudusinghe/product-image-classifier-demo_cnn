@@ -14,6 +14,7 @@ import app.main as main_module
 from app.main import (
     CLASS_NAMES_PATH,
     MODEL_PATH,
+    create_interface,
     load_artifacts,
     predict_image,
     preprocess_image,
@@ -61,6 +62,34 @@ def sample_pil_image() -> Image.Image:
 def test_import_does_not_load_model_or_create_interface() -> None:
     assert "model" not in vars(main_module)
     assert "demo" not in vars(main_module)
+
+
+def test_create_interface_uses_clear_cifar10_copy(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeComponent:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    class FakeInterface:
+        def __init__(self, **kwargs: Any) -> None:
+            self.kwargs = kwargs
+
+    fake_gradio = types.ModuleType("gradio")
+    fake_gradio.Image = FakeComponent
+    fake_gradio.Label = FakeComponent
+    fake_gradio.Interface = FakeInterface
+    monkeypatch.setitem(sys.modules, "gradio", fake_gradio)
+
+    interface = create_interface(DummyModel(), TEST_CLASS_NAMES)
+
+    assert interface.kwargs["title"] == "CIFAR-10 Image Classifier"
+    assert interface.kwargs["inputs"].kwargs["label"] == "Upload Image"
+    assert interface.kwargs["outputs"].kwargs["label"] == "Top Predictions"
+    assert interface.kwargs["outputs"].kwargs["num_top_classes"] == 3
+    assert interface.kwargs["flagging_mode"] == "never"
+    assert "32 x 32" in interface.kwargs["description"]
+    assert "airplane, automobile" in interface.kwargs["description"]
 
 
 def test_preprocess_image_returns_correct_shape(sample_pil_image: Image.Image) -> None:
