@@ -26,3 +26,9 @@ htmlcov/
 # Logs
 logs/*.log
 !logs/.gitkeep
+
+.pytest_cache/
+
+.terraform/
+*.tfstate
+*.tfstate.*
